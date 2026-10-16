@@ -24,6 +24,8 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
   bool _isChecking = false;
   bool _isCompleted = false;
 
+  bool get _isExpired => _remainingTime.inSeconds <= 0;
+
   @override
   void initState() {
     super.initState();
@@ -52,8 +54,8 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
   }
 
   void _startPolling() {
-    // Polling trạng thái thanh toán từ SePay webhook mỗi 5 giây
-    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) => _checkPaymentStatus(silent: true));
+    // Polling tự động mỗi 3 giây theo quy chuẩn FE_SEPAY_VIETQR_INTEGRATION_AND_UX_SAFETY_GUIDE
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) => _checkPaymentStatus(silent: true));
   }
 
   Future<void> _checkPaymentStatus({bool silent = false}) async {
@@ -74,6 +76,7 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
           _isCompleted = true;
           _pollingTimer?.cancel();
           _countdownTimer?.cancel();
+          HapticFeedback.mediumImpact();
           _showSuccessDialog();
         }
       }
@@ -97,7 +100,7 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
           ],
         ),
         content: const Text(
-          'Giao dịch chuyển khoản cho đơn hàng này đã hết hạn 15 phút. Nếu bạn đã chuyển khoản, hệ thống sẽ tự động hoàn tiền vào ví.',
+          'Đơn hàng đã hết thời hạn thanh toán (15 phút). Vui lòng KHÔNG chuyển tiền vào mã này nữa để tránh đơn hàng bị hủy tự động.',
         ),
         actions: [
           ElevatedButton(
@@ -126,7 +129,7 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
           ],
         ),
         content: const Text(
-          'Hệ thống SePay đã xác nhận giao dịch chuyển khoản thành công. Số tiền đã được chuyển vào Escrow SecondLife để bảo vệ bạn.',
+          'Hệ thống SePay đã ghi nhận giao dịch chuyển khoản thành công. Số tiền đã được đưa vào Escrow SecondLife để bảo vệ bạn trong suốt quá trình giao nhận hàng.',
         ),
         actions: [
           ElevatedButton(
@@ -142,13 +145,81 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
     );
   }
 
-  void _copyToClipboard(String text, String label) {
+  void _copyToClipboard(String text, String label, {bool isTransferContent = false}) {
+    if (_isExpired) return;
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Đã sao chép $label: $text'),
-        duration: const Duration(seconds: 2),
-        backgroundColor: AppColors.primary,
+
+    if (isTransferContent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.amber.shade900,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          content: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '⚠️ Đã chép mã: $text. Tuyệt đối KHÔNG dùng lại nội dung chuyển khoản cũ để tránh đơn hàng bị hủy!',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã sao chép $label: $text'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+    }
+  }
+
+  void _showFullScreenQr(String qrUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Mã VietQR Thanh Toán',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: CachedNetworkImage(
+                  imageUrl: qrUrl,
+                  width: 280,
+                  height: 280,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Bạn có thể chụp màn hình để mở trong App Ngân Hàng',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -175,30 +246,110 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                // Chiến lược 5: Wallet Fallback Banner (Nếu tiền đã lỡ chuyển vào ví)
+                if (payment.hasWalletFallback)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF10B981), width: 1.5),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Color(0xFF059669), size: 24),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Đã Hoàn Tiền Vào Ví An Toàn',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF065F46)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'SecondLife đã nhận được ${currencyFormatter.format(payment.walletCreditedAmount)} từ bạn! Tuy nhiên do giao dịch được thực hiện sau khi đơn hàng hết hạn, toàn bộ số tiền đã được hoàn trả an toàn vào Ví SecondLife của bạn.',
+                          style: const TextStyle(fontSize: 13, color: Color(0xFF047857), height: 1.4),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF059669),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                icon: const Icon(Icons.shopping_bag_outlined, size: 16),
+                                label: const Text('Mua Lại Bằng Ví', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                onPressed: () {
+                                  context.push('/marketplace');
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF065F46),
+                                  side: const BorderSide(color: Color(0xFF059669)),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                icon: const Icon(Icons.account_balance_wallet_outlined, size: 16),
+                                label: const Text('Kiểm Tra Số Dư Ví', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                onPressed: () {
+                                  context.push('/wallet');
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
                 // Countdown Timer Banner
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   decoration: BoxDecoration(
-                    color: _remainingTime.inMinutes < 3 ? Colors.red.shade50 : Colors.amber.shade50,
+                    color: _isExpired
+                        ? Colors.grey.shade100
+                        : (_remainingTime.inMinutes < 3 ? Colors.red.shade50 : Colors.amber.shade50),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _remainingTime.inMinutes < 3 ? Colors.red.shade300 : Colors.amber.shade300,
+                      color: _isExpired
+                          ? Colors.grey.shade300
+                          : (_remainingTime.inMinutes < 3 ? Colors.red.shade300 : Colors.amber.shade300),
                     ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.timer_outlined,
-                        color: _remainingTime.inMinutes < 3 ? Colors.red : Colors.amber.shade900,
+                        _isExpired ? Icons.timer_off_outlined : Icons.timer_outlined,
+                        color: _isExpired
+                            ? Colors.grey
+                            : (_remainingTime.inMinutes < 3 ? Colors.red : Colors.amber.shade900),
                         size: 22,
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Thời gian thanh toán còn lại: $minutes:$seconds',
+                        _isExpired
+                            ? 'MÃ THANH TOÁN ĐÃ HẾT HẠN (15 PHÚT)'
+                            : 'Thời gian thanh toán còn lại: $minutes:$seconds',
                         style: TextStyle(
-                          color: _remainingTime.inMinutes < 3 ? Colors.red : Colors.amber.shade900,
+                          color: _isExpired
+                              ? Colors.grey.shade800
+                              : (_remainingTime.inMinutes < 3 ? Colors.red : Colors.amber.shade900),
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -208,7 +359,7 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
                 ),
                 const SizedBox(height: 16),
 
-                // VietQR Code Box
+                // VietQR Code Box (Chiến lược 1 & 3: Động & Làm mờ khi hết hạn)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -231,29 +382,70 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Hỗ trợ 40+ ứng dụng ngân hàng và ví MoMo, ZaloPay',
-                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                        'Mở App Ngân hàng bất kỳ để Quét mã QR tự động điền số tiền & nội dung',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 11, color: Colors.blueGrey, fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(height: 16),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: CachedNetworkImage(
-                          imageUrl: payment.qrCodeUrl,
-                          width: 240,
-                          height: 240,
-                          fit: BoxFit.contain,
-                          placeholder: (_, _) => Container(
-                            width: 240,
-                            height: 240,
-                            color: Colors.grey.shade100,
-                            child: const Center(
-                              child: CircularProgressIndicator(color: AppColors.primary),
+
+                      // QR Stack với Blur che phủ khi hết hạn
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: CachedNetworkImage(
+                              imageUrl: payment.qrCodeUrl,
+                              width: 240,
+                              height: 240,
+                              fit: BoxFit.contain,
+                              placeholder: (_, _) => Container(
+                                width: 240,
+                                height: 240,
+                                color: Colors.grey.shade100,
+                                child: const Center(
+                                  child: CircularProgressIndicator(color: AppColors.primary),
+                                ),
+                              ),
+                              errorWidget: (_, _, _) => const Icon(Icons.qr_code_2, size: 160, color: Colors.grey),
                             ),
                           ),
-                          errorWidget: (_, _, _) => const Icon(Icons.qr_code_2, size: 160, color: Colors.grey),
-                        ),
+
+                          // Lớp phủ vô hiệu hóa khi hết hạn 15 phút (Chiến lược 3)
+                          if (_isExpired)
+                            Container(
+                              width: 244,
+                              height: 244,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.92),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.block_outlined, color: Colors.red, size: 48),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'MÃ ĐÃ HẾT HẠN\nVui lòng không chuyển tiền',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
+
+                      // Nút phóng to / xem toàn màn hình
+                      TextButton.icon(
+                        onPressed: _isExpired ? null : () => _showFullScreenQr(payment.qrCodeUrl),
+                        icon: const Icon(Icons.crop_free, size: 16),
+                        label: const Text('Phóng to mã QR / Chụp màn hình', style: TextStyle(fontSize: 12)),
+                      ),
+
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
@@ -266,7 +458,7 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
                             Icon(Icons.bolt, color: Colors.green, size: 16),
                             SizedBox(width: 4),
                             Text(
-                              'Xác nhận tự động trong 3 - 5 giây',
+                              'SePay đối soát & xác nhận tự động trong 3 giây',
                               style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 11),
                             ),
                           ],
@@ -277,7 +469,7 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
                 ),
                 const SizedBox(height: 16),
 
-                // Bank Details Card
+                // Bank Details Card (Chiến lược 2: Cảnh báo mạnh mẽ khi Copy thủ công)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -314,11 +506,64 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
                         copyValue: (payment.remainingAmount > 0 ? payment.remainingAmount : payment.totalAmount).toInt().toString(),
                         isHighlight: true,
                       ),
-                      _buildCopyRow(
-                        label: 'Nội dung chuyển khoản (Bắt buộc)',
-                        value: payment.transferContent,
-                        copyValue: payment.transferContent,
-                        isHighlight: true,
+
+                      const SizedBox(height: 8),
+
+                      // Ô NỘI DUNG CHUYỂN TIỀN ĐẶC BIỆT NỔI BẬT (BẮT BUỘC)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.red.shade300, width: 1.2),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'NỘI DUNG CHUYỂN TIỀN (BẮT BUỘC):',
+                                    style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    payment.transferContent,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 18,
+                                      color: Colors.red,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: _isExpired
+                                  ? null
+                                  : () => _copyToClipboard(
+                                        payment.transferContent,
+                                        'Nội dung chuyển khoản',
+                                        isTransferContent: true,
+                                      ),
+                              icon: const Icon(Icons.copy, size: 14),
+                              label: const Text('Sao Chép'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        '* Lưu ý quan trọng: Mỗi đơn hàng có mã thanh toán riêng biệt. Tuyệt đối KHÔNG dùng lại nội dung cũ trong danh bạ ngân hàng để tránh đơn hàng bị hủy!',
+                        style: TextStyle(fontSize: 11, color: Colors.redAccent, fontStyle: FontStyle.italic),
                       ),
                     ],
                   ),
@@ -344,7 +589,7 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
                           )
                         : const Icon(Icons.sync),
                     label: Text(
-                      _isChecking ? 'Đang kiểm tra giao dịch...' : 'Tôi Đã Chuyển Khoản Thành Công',
+                      _isChecking ? 'Đang kiểm tra giao dịch...' : 'Tôi Đã Chuyển Khoản Xong',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                   ),
@@ -412,11 +657,11 @@ class _OrderBankTransferScreenState extends ConsumerState<OrderBankTransferScree
             ),
           ),
           InkWell(
-            onTap: () => _copyToClipboard(copyValue, label),
+            onTap: _isExpired ? null : () => _copyToClipboard(copyValue, label),
             borderRadius: BorderRadius.circular(4),
-            child: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Icon(Icons.copy, size: 16, color: AppColors.primary),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(Icons.copy, size: 16, color: _isExpired ? Colors.grey : AppColors.primary),
             ),
           ),
         ],

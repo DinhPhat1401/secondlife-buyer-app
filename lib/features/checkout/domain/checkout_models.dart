@@ -141,6 +141,7 @@ class OrderBankPaymentResponse {
   final double totalAmount;
   final double receivedAmount;
   final double remainingAmount;
+  final double walletCreditedAmount;
   final String transferContent;
   final String bankAccountName;
   final String bankAccountNumber;
@@ -156,6 +157,7 @@ class OrderBankPaymentResponse {
     required this.totalAmount,
     this.receivedAmount = 0.0,
     required this.remainingAmount,
+    this.walletCreditedAmount = 0.0,
     required this.transferContent,
     required this.bankAccountName,
     required this.bankAccountNumber,
@@ -174,6 +176,7 @@ class OrderBankPaymentResponse {
     final total = parseNum(json['totalAmount']);
     final received = parseNum(json['receivedAmount']);
     final remaining = parseNum(json['remainingAmount'] ?? (total - received));
+    final walletCredited = parseNum(json['walletCreditedAmount']);
 
     DateTime expAt;
     if (json['expiresAt'] != null) {
@@ -196,6 +199,7 @@ class OrderBankPaymentResponse {
       totalAmount: total,
       receivedAmount: received,
       remainingAmount: remaining > 0 ? remaining : total,
+      walletCreditedAmount: walletCredited,
       transferContent: (json['transferContent'] ?? '').toString(),
       bankAccountName: (json['bankAccountName'] ?? 'CONG TY SECONDLIFE').toString(),
       bankAccountNumber: (json['bankAccountNumber'] ?? '').toString(),
@@ -219,4 +223,6 @@ class OrderBankPaymentResponse {
       paidAt != null;
 
   bool get isExpired => DateTime.now().isAfter(expiresAt) && !isPaid;
+
+  bool get hasWalletFallback => walletCreditedAmount > 0;
 }
