@@ -14,6 +14,8 @@ class AppException implements Exception {
   @override
   String toString() => message;
 
+  factory AppException.fromDioError(DioException error) => AppException.fromDio(error);
+
   factory AppException.fromDio(DioException error) {
     final targetUrl = error.requestOptions.baseUrl;
     if (error.type == DioExceptionType.connectionTimeout ||

@@ -43,8 +43,10 @@ class _TamperSealLookupSheetState extends State<TamperSealLookupSheet> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialSealId ?? 'SL-SEAL-20261014-9988');
-    _verify();
+    _controller = TextEditingController(text: widget.initialSealId ?? '');
+    if (_controller.text.trim().isNotEmpty) {
+      _verify();
+    }
   }
 
   @override

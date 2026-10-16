@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/network/error_handler.dart';
 import '../domain/checkout_models.dart';
 
 class CheckoutRepository {
@@ -54,29 +55,10 @@ class CheckoutRepository {
       final raw = response.data;
       final data = (raw is Map && raw.containsKey('data')) ? raw['data'] : raw;
       return ShippingQuoteModel.fromJson(data as Map<String, dynamic>);
-    } on DioException {
-      // Fallback quote simulation for smooth testing if Lalamove sandbox is restricted
-      return ShippingQuoteModel(
-        quoteId: 'quote-simulated-${DateTime.now().millisecondsSinceEpoch}',
-        leg: 'SELLER_TO_BUYER',
-        shippingFee: 35000,
-        productPrice: 850000,
-        totalPayable: 885000,
-        serviceType: 'MOTORCYCLE',
-        provider: 'Lalamove',
-        expiresAt: DateTime.now().add(const Duration(minutes: 30)),
-      );
-    } catch (_) {
-      return ShippingQuoteModel(
-        quoteId: 'quote-simulated-${DateTime.now().millisecondsSinceEpoch}',
-        leg: 'SELLER_TO_BUYER',
-        shippingFee: 35000,
-        productPrice: 850000,
-        totalPayable: 885000,
-        serviceType: 'MOTORCYCLE',
-        provider: 'Lalamove',
-        expiresAt: DateTime.now().add(const Duration(minutes: 30)),
-      );
+    } on DioException catch (e) {
+      throw AppException.fromDioError(e);
+    } catch (e) {
+      throw AppException(message: 'Không thể tính phí vận chuyển từ hệ thống: $e');
     }
   }
 
