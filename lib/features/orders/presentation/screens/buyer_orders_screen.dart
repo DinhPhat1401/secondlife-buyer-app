@@ -1,4 +1,4 @@
-﻿import '../../../shipments/presentation/screens/shipment_tracking_screen.dart';
+import '../../../shipments/presentation/screens/shipment_tracking_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,6 +58,62 @@ class _BuyerOrdersScreenState extends ConsumerState<BuyerOrdersScreen> {
     );
   }
 
+  void _showConfirmFinalPaymentDialog(BuildContext context, BuyerOrderModel order) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.payment, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('Thanh Toán Tiền Hàng'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Sản phẩm đã qua kiểm định ĐẠT CHUẨN chất lượng!'),
+            const SizedBox(height: 8),
+            Text(
+              'Số tiền thanh toán nốt: ${order.formattedTotal}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Sau khi xác nhận thanh toán, tài xế sẽ lấy hàng từ Hub và giao tận nơi cho bạn.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Để sau'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(context);
+              final ok = await ref.read(buyerOrdersNotifierProvider.notifier).confirmFinalPurchase(order.id);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok
+                        ? 'Thanh toán tiền hàng thành công! Đơn hàng đang chuyển sang chặng giao hàng.'
+                        : 'Lỗi thanh toán. Vui lòng kiểm tra số dư ví hoặc thử lại!'),
+                    backgroundColor: ok ? Colors.green : Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('Thanh toán ngay'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(buyerOrdersNotifierProvider);
@@ -83,6 +139,8 @@ class _BuyerOrdersScreenState extends ConsumerState<BuyerOrdersScreen> {
                   _buildStatusChip('Tất cả', null),
                   const SizedBox(width: 8),
                   _buildStatusChip('Chờ xác nhận', OrderStatus.pending),
+                  const SizedBox(width: 8),
+                  _buildStatusChip('Chờ thanh toán (6h)', OrderStatus.pendingFinalPayment),
                   const SizedBox(width: 8),
                   _buildStatusChip('Đang vận chuyển', OrderStatus.shipping),
                   const SizedBox(width: 8),
@@ -120,7 +178,7 @@ class _BuyerOrdersScreenState extends ConsumerState<BuyerOrdersScreen> {
                       : ListView.separated(
                           padding: const EdgeInsets.all(16),
                           itemCount: state.filteredOrders.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final order = state.filteredOrders[index];
                             return _buildOrderCard(context, order);
@@ -167,6 +225,10 @@ class _BuyerOrdersScreenState extends ConsumerState<BuyerOrdersScreen> {
         statusBg = Colors.amber.shade50;
         statusColor = Colors.amber.shade900;
         break;
+      case OrderStatus.pendingFinalPayment:
+        statusBg = const Color(0xFFFFF7ED);
+        statusColor = const Color(0xFFC2410C);
+        break;
       case OrderStatus.confirmed:
         statusBg = Colors.blue.shade50;
         statusColor = Colors.blue.shade800;
@@ -179,6 +241,7 @@ class _BuyerOrdersScreenState extends ConsumerState<BuyerOrdersScreen> {
         statusBg = Colors.green.shade50;
         statusColor = Colors.green.shade800;
         break;
+      case OrderStatus.expired:
       case OrderStatus.cancelled:
         statusBg = Colors.red.shade50;
         statusColor = Colors.red.shade800;
@@ -265,6 +328,65 @@ class _BuyerOrdersScreenState extends ConsumerState<BuyerOrdersScreen> {
               ),
             ],
           ),
+
+          if (order.isPendingFinalPayment) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFDBA74)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.timer_outlined, size: 16, color: Color(0xFFC2410C)),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Kiểm định ĐẠT! Vui lòng thanh toán nốt tiền hàng trong 6 giờ.',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFC2410C)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '• Nếu quá 6 giờ không xác nhận thanh toán nốt, đơn hàng sẽ hủy và tiền cọc kiểm định được chuyển cho Người bán.\n• Video quá trình kiểm định & dán tem niêm phong được lưu trữ 14 ngày.',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF9A3412)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          if (order.isExpiredOrForfeited) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.info_outline, size: 16, color: Color(0xFFDC2626)),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Đơn hàng đã hết hạn thanh toán 6 giờ sau kiểm định Đạt. Đơn đã hủy và tiền cọc kiểm định đã được bồi thường cho Người bán.',
+                      style: TextStyle(fontSize: 11, color: Color(0xFFDC2626)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           const Divider(height: 16),
 
           // Actions
@@ -291,6 +413,20 @@ class _BuyerOrdersScreenState extends ConsumerState<BuyerOrdersScreen> {
                   },
                 ),
               const SizedBox(width: 8),
+
+              if (order.isPendingFinalPayment) ...[
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE05638),
+                    foregroundColor: Colors.white,
+                    visualDensity: VisualDensity.compact,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => _showConfirmFinalPaymentDialog(context, order),
+                  child: const Text('Thanh toán nốt (6h)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 8),
+              ],
 
               if (order.status == OrderStatus.shipping) ...[
                 OutlinedButton.icon(

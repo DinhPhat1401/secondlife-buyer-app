@@ -86,6 +86,7 @@ class ApiEndpoints {
   static String orderShipments(String orderId) => '/api/v1/orders/$orderId/shipments';
   static String orderCommission(String orderId) => '/api/v1/orders/$orderId/commission';
   static String orderSettlement(String orderId) => '/api/v1/orders/$orderId/settlement';
+  static String orderPayment(String orderId) => '/api/v1/orders/$orderId/payment';
 
   // Shipments & Tracking
   static String shipmentTracking(String shipmentId) => '/api/v1/shipments/$shipmentId/tracking';
@@ -99,9 +100,11 @@ class ApiEndpoints {
   static String inspectionOrder(String orderId) => '/api/v1/inspection/orders/$orderId';
   static String inspectionRespond(String orderId) => '/api/v1/inspection/requests/$orderId/respond';
   static String inspectionPayFee(String orderId) => '/api/v1/inspection/orders/$orderId/pay-fee';
+  static String inspectionConfirmPurchase(String orderId) => '/api/v1/inspection/orders/$orderId/confirm-purchase';
   static String inspectionSchedule(String orderId) => '/api/v1/inspector/orders/$orderId/schedule';
   static String inspectionStart(String orderId) => '/api/v1/inspector/orders/$orderId/start';
   static String inspectionSealLookup(String sealId) => '/api/v1/inspection/seal/$sealId';
+  static const String inspectionSealScan = '/api/v1/inspection/seal/scan';
 
   // Wallets & Payout
   static const String walletMe = '/api/v1/wallets/me';

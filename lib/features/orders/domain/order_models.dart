@@ -1,11 +1,13 @@
-﻿import 'package:intl/intl.dart';
+import 'package:intl/intl.dart';
 
 enum OrderStatus {
   pending('PENDING', 'Chờ xác nhận'),
   confirmed('CONFIRMED', 'Đã xác nhận'),
+  pendingFinalPayment('PENDING_FINAL_PAYMENT', 'Chờ thanh toán tiền hàng (6h)'),
   shipping('SHIPPING', 'Đang vận chuyển'),
   delivered('DELIVERED', 'Đã nhận hàng'),
   cancelled('CANCELLED', 'Đã hủy'),
+  expired('EXPIRED', 'Hết hạn (Bồi thường cọc)'),
   unknown('UNKNOWN', 'Không xác định');
 
   final String code;
@@ -16,14 +18,22 @@ enum OrderStatus {
   static OrderStatus fromString(String? val) {
     switch (val?.toUpperCase()) {
       case 'PENDING':
+      case 'PAYMENT_PENDING':
         return OrderStatus.pending;
       case 'CONFIRMED':
+      case 'ESCROWED':
         return OrderStatus.confirmed;
+      case 'PENDING_FINAL_PAYMENT':
+      case 'INSPECTION_PASSED':
+        return OrderStatus.pendingFinalPayment;
       case 'SHIPPING':
       case 'SHIPPED':
+      case 'DELIVERING_TO_BUYER':
         return OrderStatus.shipping;
       case 'DELIVERED':
         return OrderStatus.delivered;
+      case 'EXPIRED':
+        return OrderStatus.expired;
       case 'CANCELLED':
       case 'CANCELED':
         return OrderStatus.cancelled;
@@ -51,6 +61,12 @@ class BuyerOrderModel {
   final String? shipmentId;
   final String? createdAt;
   final String? updatedAt;
+  final DateTime? finalPaymentDeadline; // [MỚI] Hạn chót 6 giờ thanh toán sau khi kiểm định Đạt
+  final DateTime? finalPaymentPaidAt;
+  final String? inspectionStatus; // PASSED, FAILED
+  final String? tamperSealId;
+  final String? videoProofUrl;
+  final double inspectionFeeBuyerShare;
 
   const BuyerOrderModel({
     required this.id,
@@ -70,6 +86,12 @@ class BuyerOrderModel {
     this.shipmentId,
     this.createdAt,
     this.updatedAt,
+    this.finalPaymentDeadline,
+    this.finalPaymentPaidAt,
+    this.inspectionStatus,
+    this.tamperSealId,
+    this.videoProofUrl,
+    this.inspectionFeeBuyerShare = 0.0,
   });
 
   factory BuyerOrderModel.fromJson(Map<String, dynamic> json) {
@@ -84,6 +106,20 @@ class BuyerOrderModel {
     } else if (json['deliveryAddress'] != null) {
       addr = json['deliveryAddress'].toString();
     }
+
+    DateTime? deadline;
+    if (json['finalPaymentDeadline'] != null) {
+      deadline = DateTime.tryParse(json['finalPaymentDeadline'].toString());
+    }
+
+    DateTime? paidTime;
+    if (json['finalPaymentPaidAt'] != null) {
+      paidTime = DateTime.tryParse(json['finalPaymentPaidAt'].toString());
+    }
+
+    final feeShare = (json['buyerInspectionFeeShare'] as num?)?.toDouble() ??
+        (json['inspectionFeeBuyerShare'] as num?)?.toDouble() ??
+        0.0;
 
     return BuyerOrderModel(
       id: json['id'] ?? '',
@@ -103,11 +139,24 @@ class BuyerOrderModel {
       shipmentId: json['shipmentId'],
       createdAt: json['createdAt'],
       updatedAt: json['updatedAt'],
+      finalPaymentDeadline: deadline,
+      finalPaymentPaidAt: paidTime,
+      inspectionStatus: json['inspectionStatus']?.toString(),
+      tamperSealId: json['tamperSealId']?.toString(),
+      videoProofUrl: json['videoProofUrl']?.toString(),
+      inspectionFeeBuyerShare: feeShare,
     );
   }
 
   bool get canConfirmDelivered => status == OrderStatus.shipping;
   bool get canCancel => status == OrderStatus.pending;
+  bool get isPendingFinalPayment =>
+      status == OrderStatus.pendingFinalPayment ||
+      (hasInspection && inspectionStatus == 'PASSED' && finalPaymentPaidAt == null);
+
+  bool get isExpiredOrForfeited =>
+      status == OrderStatus.expired ||
+      (status == OrderStatus.cancelled && finalPaymentDeadline != null && finalPaymentPaidAt == null);
 
   String get formattedTotal {
     final f = NumberFormat.currency(locale: 'vi_VN', symbol: '₫', decimalDigits: 0);

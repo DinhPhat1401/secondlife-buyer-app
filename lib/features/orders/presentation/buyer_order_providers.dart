@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../data/buyer_order_repository.dart';
 import '../domain/order_models.dart';
@@ -98,5 +98,13 @@ class BuyerOrdersNotifier extends Notifier<BuyerOrdersState> {
       state = state.copyWith(errorMessage: e.toString());
       return false;
     }
+  }
+
+  Future<bool> confirmFinalPurchase(String orderId) async {
+    final ok = await _repo.confirmFinalPurchase(orderId);
+    if (ok) {
+      await fetchOrders();
+    }
+    return ok;
   }
 }

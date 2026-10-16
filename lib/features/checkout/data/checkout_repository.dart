@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_endpoints.dart';
 import '../domain/checkout_models.dart';
@@ -54,7 +54,7 @@ class CheckoutRepository {
       final raw = response.data;
       final data = (raw is Map && raw.containsKey('data')) ? raw['data'] : raw;
       return ShippingQuoteModel.fromJson(data as Map<String, dynamic>);
-    } on DioException catch (e) {
+    } on DioException {
       // Fallback quote simulation for smooth testing if Lalamove sandbox is restricted
       return ShippingQuoteModel(
         quoteId: 'quote-simulated-${DateTime.now().millisecondsSinceEpoch}',
@@ -88,5 +88,14 @@ class CheckoutRepository {
     final raw = response.data;
     final data = (raw is Map && raw.containsKey('data')) ? raw['data'] : raw;
     return (data is Map<String, dynamic>) ? data : {'success': true};
+  }
+
+  Future<OrderBankPaymentResponse> getOrderBankPayment(String orderId) async {
+    final response = await _client.get(
+      ApiEndpoints.orderPayment(orderId),
+    );
+    final raw = response.data;
+    final data = (raw is Map && raw.containsKey('data')) ? raw['data'] : raw;
+    return OrderBankPaymentResponse.fromJson(data as Map<String, dynamic>);
   }
 }

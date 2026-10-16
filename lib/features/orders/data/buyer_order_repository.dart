@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/order_models.dart';
 
@@ -47,6 +47,15 @@ class BuyerOrderRepository {
     final raw = response.data;
     final data = (raw is Map && raw.containsKey('data')) ? raw['data'] : raw;
     return BuyerOrderModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<bool> confirmFinalPurchase(String orderId) async {
+    try {
+      await _client.post('/api/v1/inspection/orders/$orderId/confirm-purchase');
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   List<BuyerOrderModel> _getDemoBuyerOrders() {

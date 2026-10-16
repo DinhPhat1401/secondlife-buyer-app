@@ -1,4 +1,4 @@
-﻿import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +26,7 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _requireInspection = false;
+  String _selectedPaymentMethod = 'WALLET'; // 'WALLET' hoặc 'BANK_TRANSFER'
 
   void _showEditAddressDialog(BuildContext context, DeliveryAddressModel current) {
     final nameCtrl = TextEditingController(text: current.name);
@@ -308,58 +309,179 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
+                        const SizedBox(height: 12),
 
-                        // Escrow Wallet Status Card
+                        // Payment Methods Card
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: hasEnoughBalance ? const Color(0xFFEEEEEE) : Colors.red.shade300,
-                            ),
+                            border: Border.all(color: const Color(0xFFEEEEEE)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.account_balance_wallet_outlined, color: AppColors.primary, size: 22),
-                                  const SizedBox(width: 8),
-                                  const Text('Phương thức: Ví SecondLife Escrow', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                  const Spacer(),
-                                  Text(
-                                    currencyFormatter.format(walletBalance),
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      color: hasEnoughBalance ? Colors.green.shade700 : Colors.red,
+                              const Text('Phương Thức Thanh Toán', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                              const SizedBox(height: 12),
+
+                              // Option 1: Direct Bank Transfer via SePay
+                              InkWell(
+                                onTap: () => setState(() => _selectedPaymentMethod = 'BANK_TRANSFER'),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: _selectedPaymentMethod == 'BANK_TRANSFER'
+                                        ? AppColors.primary.withValues(alpha: 0.05)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: _selectedPaymentMethod == 'BANK_TRANSFER'
+                                          ? AppColors.primary
+                                          : Colors.grey.shade300,
+                                      width: _selectedPaymentMethod == 'BANK_TRANSFER' ? 1.5 : 1,
                                     ),
                                   ),
-                                ],
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Radio<String>(
+                                        value: 'BANK_TRANSFER',
+                                        groupValue: _selectedPaymentMethod,
+                                        activeColor: AppColors.primary,
+                                        onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.qr_code_2_rounded, color: AppColors.primary, size: 20),
+                                                const SizedBox(width: 6),
+                                                const Text(
+                                                  'Chuyển khoản VietQR SePay',
+                                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.green.shade50,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: const Text(
+                                                    'Khuyên dùng',
+                                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Quét mã VietQR qua 40+ app ngân hàng, không mất phí, xác nhận tức thì trong 15 phút.',
+                                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                              if (!hasEnoughBalance) ...[
-                                const SizedBox(height: 10),
-                                Text(
-                                  'Số dư ví không đủ để thanh toán đơn hàng này. Vui lòng nạp thêm ${currencyFormatter.format(total - walletBalance)}.',
-                                  style: const TextStyle(fontSize: 12, color: Colors.red),
-                                ),
-                                const SizedBox(height: 8),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton.icon(
-                                    icon: const Icon(Icons.qr_code_2_rounded, color: AppColors.primary),
-                                    label: const Text('Nạp tiền ngay qua VietQR SePay', style: TextStyle(color: AppColors.primary)),
-                                    style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(color: AppColors.primary),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              const SizedBox(height: 10),
+
+                              // Option 2: SecondLife Escrow Wallet
+                              InkWell(
+                                onTap: () => setState(() => _selectedPaymentMethod = 'WALLET'),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: _selectedPaymentMethod == 'WALLET'
+                                        ? AppColors.primary.withValues(alpha: 0.05)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: _selectedPaymentMethod == 'WALLET'
+                                          ? AppColors.primary
+                                          : (hasEnoughBalance ? Colors.grey.shade300 : Colors.red.shade300),
+                                      width: _selectedPaymentMethod == 'WALLET' ? 1.5 : 1,
                                     ),
-                                    onPressed: () {
-                                      showVietQrDepositSheet(context, ref);
-                                    },
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Radio<String>(
+                                            value: 'WALLET',
+                                            groupValue: _selectedPaymentMethod,
+                                            activeColor: AppColors.primary,
+                                            onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    const Icon(Icons.account_balance_wallet_outlined, color: AppColors.primary, size: 20),
+                                                    const SizedBox(width: 6),
+                                                    const Text(
+                                                      'Ví SecondLife Escrow',
+                                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                    ),
+                                                    const Spacer(),
+                                                    Text(
+                                                      currencyFormatter.format(walletBalance),
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 13,
+                                                        color: hasEnoughBalance ? Colors.green.shade700 : Colors.red,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Trừ tiền trực tiếp từ số dư ví SecondLife của bạn.',
+                                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      if (_selectedPaymentMethod == 'WALLET' && !hasEnoughBalance) ...[
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Số dư ví không đủ. Cần nạp thêm ${currencyFormatter.format(total - walletBalance)}.',
+                                          style: const TextStyle(fontSize: 11, color: Colors.red),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: OutlinedButton.icon(
+                                            icon: const Icon(Icons.add_card, size: 16, color: AppColors.primary),
+                                            label: const Text('Nạp tiền vào ví', style: TextStyle(fontSize: 12, color: AppColors.primary)),
+                                            style: OutlinedButton.styleFrom(
+                                              side: const BorderSide(color: AppColors.primary),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                              visualDensity: VisualDensity.compact,
+                                            ),
+                                            onPressed: () => showVietQrDepositSheet(context, ref),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
-                              ],
+                              ),
                             ],
                           ),
                         ),
@@ -385,50 +507,59 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            onPressed: (checkoutState.isSubmitting || !hasEnoughBalance)
+                            onPressed: (checkoutState.isSubmitting ||
+                                    (_selectedPaymentMethod == 'WALLET' && !hasEnoughBalance))
                                 ? null
                                 : () async {
-                                    final success = await ref
+                                    final orderId = await ref
                                         .read(checkoutNotifierProvider.notifier)
                                         .submitOrder(
                                           postId: widget.postId,
                                           shippingQuoteId: quote.quoteId,
                                           negotiationId: widget.negotiationId,
+                                          paymentMethod: _selectedPaymentMethod,
                                         );
 
-                                    if (success && context.mounted) {
-                                      showDialog(
-                                        context: context,
-                                        barrierDismissible: false,
-                                        builder: (_) => AlertDialog(
-                                          title: const Row(
-                                            children: [
-                                              Icon(Icons.check_circle, color: Colors.green),
-                                              SizedBox(width: 8),
-                                              Text('Đặt Hàng Thành Công!'),
+                                    if (orderId != null && context.mounted) {
+                                      if (_selectedPaymentMethod == 'BANK_TRANSFER') {
+                                        // Điều hướng sang màn hình quét mã VietQR 15 phút
+                                        context.push('/order-bank-transfer/$orderId');
+                                      } else {
+                                        showDialog(
+                                          context: context,
+                                          barrierDismissible: false,
+                                          builder: (_) => AlertDialog(
+                                            title: const Row(
+                                              children: [
+                                                Icon(Icons.check_circle, color: Colors.green),
+                                                SizedBox(width: 8),
+                                                Text('Đặt Hàng Thành Công!'),
+                                              ],
+                                            ),
+                                            content: const Text(
+                                              'Đơn hàng của bạn đã được ghi nhận. Tiền thanh toán được giữ an toàn trong Escrow và sẽ chỉ chuyển cho người bán khi bạn xác nhận nhận hàng.',
+                                            ),
+                                            actions: [
+                                              ElevatedButton(
+                                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                                                onPressed: () {
+                                                  Navigator.pop(context);
+                                                  context.go('/orders');
+                                                },
+                                                child: const Text('Xem Đơn Mua', style: TextStyle(color: Colors.white)),
+                                              ),
                                             ],
                                           ),
-                                          content: const Text(
-                                            'Đơn hàng của bạn đã được ghi nhận. Tiền thanh toán được giữ an toàn trong Escrow và sẽ chỉ chuyển cho người bán khi bạn xác nhận nhận hàng.',
-                                          ),
-                                          actions: [
-                                            ElevatedButton(
-                                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                                              onPressed: () {
-                                                Navigator.pop(context);
-                                                context.go('/orders');
-                                              },
-                                              child: const Text('Xem Đơn Mua', style: TextStyle(color: Colors.white)),
-                                            ),
-                                          ],
-                                        ),
-                                      );
+                                        );
+                                      }
                                     }
                                   },
                             child: checkoutState.isSubmitting
                                 ? const CircularProgressIndicator(color: Colors.white)
                                 : Text(
-                                    'Xác Nhận Đặt Hàng (${currencyFormatter.format(total)})',
+                                    _selectedPaymentMethod == 'BANK_TRANSFER'
+                                        ? 'Tiếp Tục Quét VietQR (${currencyFormatter.format(total)})'
+                                        : 'Xác Nhận Đặt Hàng (${currencyFormatter.format(total)})',
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                   ),
                           ),

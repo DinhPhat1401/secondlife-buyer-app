@@ -1,4 +1,4 @@
-﻿import 'package:intl/intl.dart';
+import 'package:intl/intl.dart';
 
 class DeliveryAddressModel {
   final String name;
@@ -109,12 +109,14 @@ class CreateOrderRequestModel {
   final String shippingQuoteId;
   final String requestId;
   final String? negotiationId;
+  final String paymentMethod; // WALLET hoặc BANK_TRANSFER
 
   CreateOrderRequestModel({
     required this.postId,
     required this.shippingQuoteId,
     required this.requestId,
     this.negotiationId,
+    this.paymentMethod = 'WALLET',
   });
 
   Map<String, dynamic> toJson() {
@@ -122,10 +124,99 @@ class CreateOrderRequestModel {
       'postId': postId,
       'shippingQuoteId': shippingQuoteId,
       'requestId': requestId,
+      'paymentMethod': paymentMethod,
     };
     if (negotiationId != null && negotiationId!.isNotEmpty) {
       map['negotiationId'] = negotiationId;
     }
     return map;
   }
+}
+
+class OrderBankPaymentResponse {
+  final String orderId;
+  final String status;
+  final String? orderStatus;
+  final String? escrowStatus;
+  final double totalAmount;
+  final double receivedAmount;
+  final double remainingAmount;
+  final String transferContent;
+  final String bankAccountName;
+  final String bankAccountNumber;
+  final String bankName;
+  final DateTime expiresAt;
+  final DateTime? paidAt;
+
+  OrderBankPaymentResponse({
+    required this.orderId,
+    required this.status,
+    this.orderStatus,
+    this.escrowStatus,
+    required this.totalAmount,
+    this.receivedAmount = 0.0,
+    required this.remainingAmount,
+    required this.transferContent,
+    required this.bankAccountName,
+    required this.bankAccountNumber,
+    required this.bankName,
+    required this.expiresAt,
+    this.paidAt,
+  });
+
+  factory OrderBankPaymentResponse.fromJson(Map<String, dynamic> json) {
+    double parseNum(dynamic val) {
+      if (val is num) return val.toDouble();
+      if (val is String) return double.tryParse(val) ?? 0.0;
+      return 0.0;
+    }
+
+    final total = parseNum(json['totalAmount']);
+    final received = parseNum(json['receivedAmount']);
+    final remaining = parseNum(json['remainingAmount'] ?? (total - received));
+
+    DateTime expAt;
+    if (json['expiresAt'] != null) {
+      expAt = DateTime.tryParse(json['expiresAt'].toString()) ??
+          DateTime.now().add(const Duration(minutes: 15));
+    } else {
+      expAt = DateTime.now().add(const Duration(minutes: 15));
+    }
+
+    DateTime? pAt;
+    if (json['paidAt'] != null) {
+      pAt = DateTime.tryParse(json['paidAt'].toString());
+    }
+
+    return OrderBankPaymentResponse(
+      orderId: (json['orderId'] ?? '').toString(),
+      status: (json['status'] ?? 'PENDING').toString(),
+      orderStatus: json['orderStatus']?.toString(),
+      escrowStatus: json['escrowStatus']?.toString(),
+      totalAmount: total,
+      receivedAmount: received,
+      remainingAmount: remaining > 0 ? remaining : total,
+      transferContent: (json['transferContent'] ?? '').toString(),
+      bankAccountName: (json['bankAccountName'] ?? 'CONG TY SECONDLIFE').toString(),
+      bankAccountNumber: (json['bankAccountNumber'] ?? '').toString(),
+      bankName: (json['bankName'] ?? 'MBBank').toString(),
+      expiresAt: expAt,
+      paidAt: pAt,
+    );
+  }
+
+  /// Đường dẫn mã VietQR tự động theo cấu hình SePay
+  String get qrCodeUrl {
+    final amountInt = (remainingAmount > 0 ? remainingAmount : totalAmount).toInt();
+    return 'https://qr.sepay.vn/img?acc=$bankAccountNumber&bank=$bankName&amount=$amountInt&des=$transferContent';
+  }
+
+  bool get isPaid =>
+      status.toUpperCase() == 'PAID' ||
+      status.toUpperCase() == 'ESCROWED' ||
+      escrowStatus?.toUpperCase() == 'HELD' ||
+      orderStatus?.toUpperCase() == 'CONFIRMED' ||
+      paidAt != null;
+
+  bool get isExpired => DateTime.now().isAfter(expiresAt) && !isPaid;
 }

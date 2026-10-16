@@ -1,4 +1,3 @@
-﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/auth_providers.dart';
@@ -6,12 +5,10 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/checkout/presentation/screens/checkout_screen.dart';
+import '../../features/checkout/presentation/screens/order_bank_transfer_screen.dart';
 import '../../features/dashboard/presentation/buyer_main_screen.dart';
 import '../../features/marketplace/presentation/screens/product_detail_screen.dart';
-import '../../features/marketplace/presentation/screens/search_filter_screen.dart';
 import '../../features/notifications/presentation/screens/notification_center_screen.dart';
-import '../../features/orders/presentation/screens/buyer_orders_screen.dart';
-import '../../features/profile/presentation/screens/buyer_profile_screen.dart';
 import '../../features/shipments/presentation/screens/shipment_tracking_screen.dart';
 import '../../features/wallet/presentation/screens/buyer_wallet_screen.dart';
 
@@ -69,6 +66,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           final postId = state.uri.queryParameters['postId'] ?? '';
           final negotiationId = state.uri.queryParameters['negotiationId'];
           return CheckoutScreen(postId: postId, negotiationId: negotiationId);
+        },
+      ),
+      GoRoute(
+        path: '/order-bank-transfer/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return OrderBankTransferScreen(orderId: id);
         },
       ),
       GoRoute(

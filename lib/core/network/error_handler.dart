@@ -90,6 +90,14 @@ class AppException implements Exception {
         );
       }
 
+      if (statusCode == 429) {
+        return AppException(
+          message: message ?? 'Bạn đang thao tác quá nhanh trên hệ thống (giới hạn 30 yêu cầu/phút). Vui lòng thử lại sau 1 phút.',
+          statusCode: 429,
+          errorCode: errorCode,
+        );
+      }
+
       return AppException(
         message: message ?? 'Có lỗi xảy ra (Mã lỗi $statusCode)',
         statusCode: statusCode,

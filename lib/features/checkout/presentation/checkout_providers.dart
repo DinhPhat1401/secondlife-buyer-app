@@ -1,4 +1,4 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../../wallet/presentation/wallet_providers.dart';
@@ -70,10 +70,11 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   @override
   CheckoutState build() => const CheckoutState();
 
-  Future<bool> submitOrder({
+  Future<String?> submitOrder({
     required String postId,
     required String shippingQuoteId,
     String? negotiationId,
+    String paymentMethod = 'WALLET',
   }) async {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
@@ -85,6 +86,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         shippingQuoteId: shippingQuoteId,
         requestId: requestId,
         negotiationId: negotiationId,
+        paymentMethod: paymentMethod,
       );
 
       final result = await repo.createOrder(request);
@@ -92,14 +94,22 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
           result['orderId']?.toString() ??
           'order-created';
 
-      // Refresh wallet balance after escrow payment deduction
-      ref.invalidate(sellerWalletNotifierProvider);
+      // Refresh wallet balance after escrow payment deduction if wallet was used
+      if (paymentMethod == 'WALLET') {
+        ref.invalidate(sellerWalletNotifierProvider);
+      }
 
       state = state.copyWith(isSubmitting: false, successOrderId: orderId);
-      return true;
+      return orderId;
     } catch (e) {
       state = state.copyWith(isSubmitting: false, errorMessage: e.toString());
-      return false;
+      return null;
     }
   }
 }
+
+final orderBankPaymentProvider =
+    FutureProvider.family<OrderBankPaymentResponse, String>((ref, orderId) async {
+  final repo = ref.watch(checkoutRepositoryProvider);
+  return repo.getOrderBankPayment(orderId);
+});

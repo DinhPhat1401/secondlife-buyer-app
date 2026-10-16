@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -155,9 +156,11 @@ class _TamperSealLookupSheetState extends State<TamperSealLookupSheet> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          _sealResult!.tamperSealId,
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        Expanded(
+                          child: Text(
+                            _sealResult!.tamperSealId,
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                          ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -176,8 +179,65 @@ class _TamperSealLookupSheetState extends State<TamperSealLookupSheet> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    _buildInfoRow('Thiết bị:', _sealResult!.productTitle),
+                    const SizedBox(height: 12),
+
+                    // Hiển thị ảnh sản phẩm
+                    if (_sealResult!.productImageUrl != null && _sealResult!.productImageUrl!.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CachedNetworkImage(
+                              imageUrl: _sealResult!.productImageUrl!,
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              placeholder: (_, _) => Container(width: 64, height: 64, color: Colors.grey.shade200),
+                              errorWidget: (_, _, _) => const Icon(Icons.devices, size: 36, color: Colors.grey),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _sealResult!.productTitle,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        'Hạng ${_sealResult!.conditionGrade}',
+                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '${_sealResult!.conditionScore}/100 điểm',
+                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 20),
+                    ] else ...[
+                      _buildInfoRow('Thiết bị:', _sealResult!.productTitle),
+                    ],
+
                     if (_sealResult!.orderCode != null)
                       _buildInfoRow('Mã đơn:', _sealResult!.orderCode!),
                     _buildInfoRow('Trung tâm:', _sealResult!.centerName),
@@ -185,6 +245,68 @@ class _TamperSealLookupSheetState extends State<TamperSealLookupSheet> {
                     _buildInfoRow('Thời gian dán:', dateFormatter.format(_sealResult!.inspectionDate)),
                     if (_sealResult!.notes != null)
                       _buildInfoRow('Ghi chú KTV:', _sealResult!.notes!),
+
+                    // Lịch sử trạm quét GPS
+                    if (_sealResult!.scanLogs.isNotEmpty) ...[
+                      const Divider(height: 20),
+                      const Text(
+                        'Hành Trình & Lưu Vết Tem Niêm Phong (GPS)',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 8),
+                      ..._sealResult!.scanLogs.map((log) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.check_circle, size: 14, color: Color(0xFF22C55E)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      log.stageLabel,
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  Text(
+                                    dateFormatter.format(log.scannedAt),
+                                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                              if (log.hasCoordinates) ...[
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.location_on, size: 12, color: AppColors.primary),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Vị trí GPS: ${log.latitude!.toStringAsFixed(4)}, ${log.longitude!.toStringAsFixed(4)}',
+                                      style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w500),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (log.notes != null && log.notes!.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  log.notes!,
+                                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade700),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
                   ],
                 ),
               ),
