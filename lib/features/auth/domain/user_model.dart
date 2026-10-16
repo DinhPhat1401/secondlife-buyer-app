@@ -8,6 +8,10 @@ class UserModel {
   final bool emailVerified;
   final List<String> roles;
   final List<String> permissions;
+  final String? badgeCode;
+  final String? stationHubId;
+  final String? stationHubName;
+  final String? certificationTitle;
 
   UserModel({
     required this.id,
@@ -19,6 +23,10 @@ class UserModel {
     required this.emailVerified,
     required this.roles,
     required this.permissions,
+    this.badgeCode,
+    this.stationHubId,
+    this.stationHubName,
+    this.certificationTitle,
   });
 
   bool get isSeller => roles.contains('SELLER');
@@ -39,6 +47,10 @@ class UserModel {
       emailVerified: userMap['emailVerified'] as bool? ?? false,
       roles: (json['roles'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? roles ?? [],
       permissions: (json['permissions'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? permissions ?? [],
+      badgeCode: userMap['badgeCode']?.toString(),
+      stationHubId: userMap['stationHubId']?.toString(),
+      stationHubName: userMap['stationHubName']?.toString(),
+      certificationTitle: userMap['certificationTitle']?.toString(),
     );
   }
 
@@ -52,5 +64,9 @@ class UserModel {
     'emailVerified': emailVerified,
     'roles': roles,
     'permissions': permissions,
+    'badgeCode': badgeCode,
+    'stationHubId': stationHubId,
+    'stationHubName': stationHubName,
+    'certificationTitle': certificationTitle,
   };
 }
